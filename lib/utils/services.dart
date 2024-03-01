@@ -1,6 +1,9 @@
 import 'dart:developer';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crud/models/item_model.dart';
 import 'package:crud/screens/home.dart';
+import 'package:crud/utils/constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -46,5 +49,35 @@ Future verifyOtp(String phone, BuildContext context, String otp) async {
       content: Text(error.toString()),
       backgroundColor: Colors.red,
     ));
+  });
+}
+
+addData(BuildContext context, String title, String description) {
+  FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+  CollectionReference items = firestore.collection('items');
+
+  items.add({'title': title, 'description': description}).then((value) {
+    items.doc(value.id).update({'id': value.id});
+    Navigator.pop(context);
+    showSnackbar(context, "Item Added Successfully", isError: false);
+  }).catchError((error) {
+    log("Failed to add user: $error");
+    showSnackbar(context, "Failed to add item", isError: true);
+  });
+}
+
+editData(BuildContext context, String title, String description, String id) {
+  FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+  CollectionReference items = firestore.collection('items');
+
+  items
+      .doc(id)
+      .update({'title': title, 'description': description}).then((value) {
+    showSnackbar(context, "Item edited Successfully", isError: false);
+  }).catchError((error) {
+    log("Failed to add user: $error");
+    showSnackbar(context, "Failed to add item", isError: true);
   });
 }

@@ -1,12 +1,16 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crud/Provider/home_provider.dart';
 import 'package:crud/models/item_model.dart';
 import 'package:crud/utils/colors.dart';
 import 'package:crud/utils/services.dart';
 import 'package:crud/widgets/button.dart';
 import 'package:crud/widgets/textfield.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:provider/provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +22,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   TextEditingController titleController = TextEditingController();
   TextEditingController descriptionController = TextEditingController();
+  String imageUrl = "";
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
@@ -25,16 +31,23 @@ class _HomeScreenState extends State<HomeScreen> {
         FirebaseFirestore.instance.collection('items').snapshots();
     return Scaffold(
       backgroundColor: Colors.white,
+      key: _scaffoldKey,
       appBar: AppBar(
         backgroundColor: MyColor.secondaryColor.withOpacity(0.08),
         toolbarHeight: 0,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          setState(() {
+            titleController.clear();
+            descriptionController.clear();
+            imageUrl = "";
+          });
           showModalBottomSheet(
               context: context,
+              backgroundColor: Colors.transparent,
               builder: (context) {
-                return buildAddItemBottomSheet();
+                return buildAddItemBottomSheet(context, false, "");
               });
         },
         child: const Icon(Icons.add),
@@ -53,7 +66,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return SizedBox(
+                    height: MediaQuery.of(context).size.height / 1.4,
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
                 }
                 if (snapshot.data!.docs.isEmpty) {
                   return SizedBox(
@@ -72,8 +90,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     (DocumentSnapshot document) {
                       ItemModel itemModel = ItemModel.fromJson(
                           document.data()! as Map<String, dynamic>);
-                      return buildTile(
-                          itemModel.title!, itemModel.description!, itemModel.id!);
+                      return buildTile(itemModel.title!, itemModel.description!,
+                          itemModel.id ?? "", itemModel.imageUrl!);
                     },
                   ).toList(),
                 );
@@ -109,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildTile(String title, String description, String id) {
+  Widget buildTile(String title, String description, String id, String image) {
     return Slidable(
       key: const ValueKey(0),
       startActionPane: ActionPane(
@@ -118,7 +136,11 @@ class _HomeScreenState extends State<HomeScreen> {
         dragDismissible: false,
         children: [
           SlidableAction(
-            onPressed: (BuildContext context) {},
+            onPressed: (BuildContext context) {
+              SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
+                deleteData(context, id);
+              });
+            },
             backgroundColor: const Color(0xFFFE4A49),
             foregroundColor: Colors.white,
             icon: Icons.delete,
@@ -142,7 +164,25 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
-            Image.asset("assets/icons/media.png", width: 80),
+            Container(
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12)),
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12)),
+                child: Image.network(
+                  image,
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.only(left: 20),
               child: Column(
@@ -165,8 +205,17 @@ class _HomeScreenState extends State<HomeScreen> {
             const Spacer(),
             InkWell(
               overlayColor: const MaterialStatePropertyAll(Colors.transparent),
-              onTap: (){
-                editData(context, "Krushil", "My Name is Krushil", id);
+              onTap: () {
+                setState(() {
+                  titleController.text = title;
+                  descriptionController.text = description;
+                });
+                showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) {
+                      return buildAddItemBottomSheet(context, true, id);
+                    });
               },
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -185,8 +234,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildAddItemBottomSheet() {
+  Widget buildAddItemBottomSheet(BuildContext context, bool isEdit, String id) {
+    final provider = Provider.of<HomeProvider>(context, listen: true);
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         height: MediaQuery.of(context).size.height / 1.2,
         padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 34),
@@ -198,35 +249,81 @@ class _HomeScreenState extends State<HomeScreen> {
             topRight: Radius.circular(16),
           ),
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Add Items",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        child: StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return SingleChildScrollView(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isEdit ? "Edit Item" : "Add Items",
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w700),
+                      ),
+                      InkWell(
+                        onTap: () async {
+                          imageUrl = await uploadImage(context);
+                          setState(() {
+                            log(imageUrl);
+                          });
+                        },
+                        child: Container(
+                          height: 110,
+                          width: 110,
+                          margin: const EdgeInsets.only(top: 15, bottom: 22),
+                          decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: imageUrl.isNotEmpty
+                              ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.topCenter,
+                                  ),
+                              )
+                              : Image.asset("assets/icons/pick.png",
+                                  height: 110),
+                        ),
+                      ),
+                      TextFieldWidget(
+                          controller: titleController,
+                          hint: "Title",
+                          isEnable: !provider.isLoading),
+                      const SizedBox(height: 18),
+                      TextFieldWidget(
+                          controller: descriptionController,
+                          hint: "Description",
+                          isEnable: !provider.isLoading),
+                      Container(
+                        margin: const EdgeInsets.only(top: 40, bottom: 22),
+                        width: double.maxFinite,
+                        child: ButtonWidget(
+                          title: "Save",
+                          onTap: () {
+                            if (!provider.isLoading) {
+                              if (isEdit) {
+                                editData(context, titleController.text,
+                                    descriptionController.text, id, imageUrl);
+                              } else {
+                                addData(context, titleController.text,
+                                    descriptionController.text, imageUrl);
+                              }
+                            }
+                          },
+                        ),
+                      )
+                    ],
+                  ),
+                  if (provider.isLoading) const CircularProgressIndicator()
+                ],
               ),
-              Container(
-                margin: const EdgeInsets.only(top: 15, bottom: 22),
-                child: Image.asset("assets/icons/pick.png", height: 110),
-              ),
-              TextFieldWidget(controller: titleController, hint: "Title"),
-              const SizedBox(height: 18),
-              TextFieldWidget(
-                  controller: descriptionController, hint: "Description"),
-              Container(
-                margin: const EdgeInsets.only(top: 22, bottom: 22),
-                width: double.maxFinite,
-                child: ButtonWidget(
-                  title: "Save",
-                  onTap: () {
-                    addData(context, titleController.text,
-                        descriptionController.text);
-                  },
-                ),
-              )
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

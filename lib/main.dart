@@ -1,3 +1,4 @@
+import 'package:crud/Provider/home_provider.dart';
 import 'package:crud/firebase_options.dart';
 import 'package:crud/screens/home.dart';
 import 'package:crud/screens/login.dart';
@@ -6,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,13 +41,18 @@ class _MainAppState extends State<MainApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: MyColor.bgColor,
-        textTheme: GoogleFonts.robotoTextTheme(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => HomeProvider())
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          scaffoldBackgroundColor: MyColor.bgColor,
+          textTheme: GoogleFonts.robotoTextTheme(),
+        ),
+        home: user != null ? const HomeScreen() : const Login(),
       ),
-      home: user != null ? const HomeScreen() : const Login(),
     );
   }
 }

@@ -1,5 +1,4 @@
 import 'package:crud/utils/colors.dart';
-import 'package:crud/utils/strings.dart';
 import 'package:flutter/material.dart';
 
 class TextFieldWidget extends StatelessWidget {
@@ -7,16 +6,19 @@ class TextFieldWidget extends StatelessWidget {
   final String? hint;
   final bool isPrefix;
   final bool isNumber;
+  final bool isEnable;
   const TextFieldWidget(
       {super.key,
       this.controller,
       this.hint,
       this.isPrefix = false,
-      this.isNumber = false});
+      this.isNumber = false,
+      this.isEnable = true});
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
+      enabled: isEnable,
       controller: controller,
       style: const TextStyle(color: Colors.black, fontSize: 18),
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
@@ -27,6 +29,9 @@ class TextFieldWidget extends StatelessWidget {
         prefixIcon: isPrefix
             ? const Icon(Icons.phone_outlined, color: MyColor.greyColor)
             : null,
+        disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: MyColor.greyColor)),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: MyColor.greyColor)),
